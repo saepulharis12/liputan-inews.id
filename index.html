@@ -926,7 +926,7 @@ function App(){
       .slice(0,3);
   },[allArticles,selectedArticle,visitorSeed]);
 
-  function openArticle(article){
+    function openArticle(article){
     if(window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReading(false);
     setEngagement(prev=>Object.assign({}, prev, {
@@ -934,12 +934,34 @@ function App(){
     }));
     setSelectedArticle(Object.assign({}, article));
     setCommentText('');
+    try{
+      history.replaceState(null,'','#'+(article.slug||article.id));
+      document.title = article.title+' - '+SITE_NAME;
+    }catch(e){}
   }
-  function closeReader(){
+    function closeReader(){
     if(window.speechSynthesis) window.speechSynthesis.cancel();
     setIsReading(false);
     setSelectedArticle(null);
+    try{
+      history.replaceState(null,'',location.pathname + location.search);
+      document.title = SITE_NAME+' - Portal Berita Nasional';
+    }catch(e){}
   }
+
+  /* Buka berita otomatis saat link bagikan diklik orang lain */
+  useEffect(()=>{
+    if(!allArticles.length || selectedArticle) return;
+    const h = (window.location.hash||'').toLowerCase();
+    if(!h || h.length<2) return;
+    const key = h.slice(1);
+    const found = allArticles.find(a=>
+      (a.id||'').toLowerCase()===key ||
+      (a.slug||'').toLowerCase()===key ||
+      (a.title||'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/(^-|-$)/g,'')===key
+    );
+    if(found) openArticle(found);
+  },[allArticles]);
   function toggleBookmark(id){
     setBookmarks(prev=>prev.includes(id)?prev.filter(x=>x!==id):[...prev,id]);
   }
@@ -983,13 +1005,14 @@ function App(){
     setIsReading(true);
     window.speechSynthesis.speak(u);
   }
-  function shareArticle(article){
+    function shareArticle(article){
     countShare(article.id);
-    const url = article.external ? article.link : (window.location.href.split('#')[0]+'#'+(article.slug||article.id));
+    const key = article.slug || article.id;
+    const url = window.location.href.split('#')[0] + '#' + key;
     const text = article.title+'\n'+(article.deck||'');
     if(navigator.share){ navigator.share({title:article.title,text:text,url:url}).catch(()=>{}); }
     else if(navigator.clipboard&&navigator.clipboard.writeText){
-      navigator.clipboard.writeText(text+'\n'+url).then(()=>alert('Tautan berhasil disalin.')).catch(()=>alert(url));
+      navigator.clipboard.writeText(text+'\n'+url).then(()=>alert('Link berita berhasil disalin!')).catch(()=>alert(url));
     } else alert(url);
   }
   function openExternal(article){ window.open(article.link,'_blank','noopener'); }
