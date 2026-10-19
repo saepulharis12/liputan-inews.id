@@ -6,22 +6,39 @@
 <title>LIPUTAN INEWS HRS.GRUP - Portal Berita Nasional</title>
 <meta name="description" content="LIPUTAN INEWS HRS.GRUP - Portal berita Indonesia dengan liputan terkini dari 38 provinsi." />
 
+<!-- ===== OPEN GRAPH & TWITTER CARD DEFAULT (halaman utama). =====
+     Untuk halaman artikel, worker.js otomatis MENGGANTI blok ini di sisi server
+     dengan judul, deskripsi, dan foto sesuai artikel yang dibagikan. ===== -->
+<meta property="og:site_name" content="LIPUTAN INEWS HRS.GRUP" />
+<meta property="og:title" content="LIPUTAN INEWS HRS.GRUP - Portal Berita Nasional" />
+<meta property="og:description" content="LIPUTAN INEWS HRS.GRUP - Portal berita Indonesia dengan liputan terkini dari 38 provinsi." />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://liputan-inewsid.harissaepul50.workers.dev/" />
+<meta property="og:image" content="https://liputan-inewsid.harissaepul50.workers.dev/logo-liputan-news.png" />
+<meta property="og:image:alt" content="LIPUTAN INEWS HRS.GRUP" />
+<meta property="og:locale" content="id_ID" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="LIPUTAN INEWS HRS.GRUP - Portal Berita Nasional" />
+<meta name="twitter:description" content="LIPUTAN INEWS HRS.GRUP - Portal berita Indonesia dengan liputan terkini dari 38 provinsi." />
+<meta name="twitter:image" content="https://liputan-inewsid.harissaepul50.workers.dev/logo-liputan-news.png" />
+<link rel="canonical" href="https://liputan-inewsid.harissaepul50.workers.dev/" />
+
 <!-- ===== FAVICON & IDENTITAS WEBSITE ===== -->
 <link rel="icon" type="image/png" sizes="512x512" href="favicon.png">
 <link rel="apple-touch-icon" sizes="512x512" href="favicon.png">
 <meta name="application-name" content="LIPUTAN INEWS HRS.GRUP">
 <meta name="apple-mobile-web-app-title" content="LIPUTAN INEWS HRS.GRUP">
 
-<!-- ===== STRUCTURED DATA SCHEMA.ORG (ganti DOMAIN-WEBSITE-SAYA.com setelah hosting) ===== -->
+<!-- ===== STRUCTURED DATA SCHEMA.ORG (alamat website sudah dikonfigurasi) ===== -->
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
   "@type": "NewsMediaOrganization",
   "name": "LIPUTAN INEWS HRS.GRUP",
-  "url": "https://DOMAIN-WEBSITE-SAYA.com",
+  "url": "https://liputan-inewsid.harissaepul50.workers.dev",
   "logo": {
     "@type": "ImageObject",
-    "url": "https://DOMAIN-WEBSITE-SAYA.com/logo-liputan-news.png",
+    "url": "https://liputan-inewsid.harissaepul50.workers.dev/logo-liputan-news.png",
     "width": 512,
     "height": 512
   }
@@ -987,8 +1004,11 @@ function App(){
   useEffect(()=>{
     if(!allArticles.length || selectedArticle) return;
     const h = (window.location.hash||'').toLowerCase();
-    if(!h || h.length<2) return;
-    const key = h.slice(1);
+    let key = (h && h.length>=2) ? h.slice(1) : '';
+    if(!key){
+      try{ key = (new URLSearchParams(window.location.search||'').get('berita')||'').toLowerCase(); }catch(e){}
+    }
+    if(!key) return;
     const found = allArticles.find(a=>
       (a.id||'').toLowerCase()===key ||
       (a.slug||'').toLowerCase()===key ||
@@ -1042,7 +1062,8 @@ function App(){
     function shareArticle(article){
     countShare(article.id);
     const key = article.slug || article.id;
-    const url = window.location.href.split('#')[0] + '#' + key;
+    const base = window.location.href.split('#')[0].split('?')[0];
+    const url = base + '?berita=' + encodeURIComponent(key) + '#' + key;
     const text = article.title+'\n'+(article.deck||'');
     if(navigator.share){ navigator.share({title:article.title,text:text,url:url}).catch(()=>{}); }
     else if(navigator.clipboard&&navigator.clipboard.writeText){
