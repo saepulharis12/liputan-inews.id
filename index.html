@@ -1082,7 +1082,9 @@ function App(){
     countShare(article.id);
     const key = article.slug || article.id;
     const base = window.location.href.split('#')[0].split('?')[0];
-    const url = base + '?berita=' + encodeURIComponent(key) + '#' + key;
+    /* &v=2 = pemicu cache: membuat WhatsApp/Facebook mengambil meta TERBARU
+       (foto pratinjau baru) alih-alih memakai pratinjau lama yang tersimpan */
+    const url = base + '?berita=' + encodeURIComponent(key) + '&v=2#' + key;
     const text = article.title+'\n'+(article.deck||'');
     if(navigator.share){ navigator.share({title:article.title,text:text,url:url}).catch(()=>{}); }
     else if(navigator.clipboard&&navigator.clipboard.writeText){
