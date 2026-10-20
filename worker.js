@@ -31,6 +31,14 @@
  *   - bagian #slug dibaca website untuk membuka artikel seperti biasa.
  * Link lama berformat https://<domain>/#<slug> tetap berfungsi normal
  * untuk pengunjung (hanya pratinjau yang memakai meta default situs).
+ *
+ * PENTING — FOTO PRATINJAU (og:image):
+ * Foto asli hasil foto HP bisa 1-5 MB. WhatsApp/Facebook MENOLAK mengunduh
+ * og:image yang lebih besar dari ±600 KB, sehingga pratinjau tampil tanpa
+ * foto (judul+deskripsi muncul, gambar kosong). Karena itu SEMUA foto artikel
+ * dialirkan lewat proxy kompresi wsrv.nl (CDN gambar gratis images.weserv.nl):
+ * dipotong 1200x630 (ukuran ideal Open Graph), diubah ke JPEG ±100-250 KB,
+ * lalu di-cache global. Hasilnya foto SELALU tampil di pratinjau WA/FB/Telegram.
  * ============================================================================
  */
 
@@ -40,6 +48,17 @@ const SITE_TITLE_HOME = SITE_NAME + ' - Portal Berita Nasional';
 const SITE_DESC = 'LIPUTAN INEWS HRS.GRUP - Portal berita Indonesia dengan liputan terkini dari 38 provinsi.';
 const SITE_AUTHOR = 'Redaksi ' + SITE_NAME;
 const FALLBACK_IMAGE = '/logo-liputan-news.png';
+
+/* ============== PROXY KOMPRESI GAMBAR (wsrv.nl / images.weserv.nl) ========= */
+/* WhatsApp praktis gagal menampilkan og:image > ~600 KB (timeout crawler).
+   wsrv.nl mengompres gambar apa pun (termasuk foto HP 5 MB) menjadi JPEG
+   1200x630 ~100-250 KB dan menyimpannya di CDN — gratis, tanpa daftar.       */
+const IMG_PROXY = 'https://wsrv.nl/';
+const OG_W = 1200;
+const OG_H = 630;
+/* Dimensi logo situs (fallback) — logo kecil, dikirim langsung tanpa proxy */
+const LOGO_W = 707;
+const LOGO_H = 353;
 
 /* ============ DAFTAR FEED — SAMA PERSIS DENGAN index.html (REAL_NEWS_FEEDS) = */
 const REAL_NEWS_FEEDS = [
@@ -229,18 +248,26 @@ function isoTanggal(str) {
 }
 function isoDate(d) { return (d && !isNaN(d)) ? d.toISOString() : ''; }
 
-/* Foto artikel -> URL absolut siap pakai untuk og:image.
-   - URL http(s)         : dipakai apa adanya (mis. raw.githubusercontent.com)
-   - nama file lokal     : https://<domain>/<nama file> (spasi -> %20, sama
-                           seperti fotoPath() di index.html)
+/* URL absolut -> URL proxy kompresi 1200x630 JPEG (siap untuk og:image)     */
+function proxify(absUrl) {
+  return IMG_PROXY + '?url=' + encodeURIComponent(absUrl)
+    + '&w=' + OG_W + '&h=' + OG_H + '&fit=cover&output=jpg&q=82';
+}
+
+/* Foto artikel -> URL og:image final.
+   - URL http(s) / nama file lokal: dilewatkan proxy kompresi wsrv.nl agar
+     ukurannya selalu kecil (foto HP 5 MB -> ~200 KB) sehingga WhatsApp,
+     Facebook, Telegram SELALU berhasil menampilkan fotonya.
    - kosong / tidak ada  : logo situs (fallback yang layak, bukan foto palsu) */
 function resolveImage(foto, origin) {
   const s = String(foto || '').trim();
   if (!s) return origin + FALLBACK_IMAGE;
-  if (/^https?:\/\//i.test(s)) return s;
-  if (s.indexOf('/') === 0) return origin + s;
-  if (s.indexOf('./') === 0) return origin + s.slice(1);
-  return origin + '/' + s.replace(/ /g, '%20');
+  let abs;
+  if (/^https?:\/\//i.test(s)) abs = s;
+  else if (s.indexOf('/') === 0) abs = origin + s;
+  else if (s.indexOf('./') === 0) abs = origin + s.slice(1);
+  else abs = origin + '/' + s.replace(/ /g, '%20');
+  return proxify(abs);
 }
 
 function seedMeta(a, origin) {
@@ -249,6 +276,9 @@ function seedMeta(a, origin) {
     title: a.title,
     description: buildDescription(a.isi || '', a.title),
     image: resolveImage(a.foto, origin),
+    imageW: OG_W,
+    imageH: OG_H,
+    imageType: 'image/jpeg',
     imageAlt: a.title,
     url: origin + '/?berita=' + encodeURIComponent(slug),
     type: 'article',
@@ -262,6 +292,9 @@ function defaultMeta(origin) {
     title: SITE_NAME,
     description: SITE_DESC,
     image: origin + FALLBACK_IMAGE,
+    imageW: LOGO_W,
+    imageH: LOGO_H,
+    imageType: 'image/png',
     imageAlt: SITE_NAME,
     url: origin + '/',
     type: 'website',
@@ -334,7 +367,10 @@ async function resolveRssMeta(key, origin) {
         meta = {
           title,
           description: buildDescription(stripHtml(it.content || '') + ' ' + stripHtml(it.description || ''), title),
-          image: /^https?:\/\//i.test(img || '') ? img : origin + FALLBACK_IMAGE,
+          image: /^https?:\/\//i.test(img || '') ? proxify(img) : origin + FALLBACK_IMAGE,
+          imageW: OG_W,
+          imageH: OG_H,
+          imageType: 'image/jpeg',
           imageAlt: title,
           url: origin + '/?berita=' + encodeURIComponent(key),
           type: 'article',
@@ -355,6 +391,11 @@ function metaBlock(m) {
   parts.push(tag('property', 'og:title', m.title));
   parts.push(tag('property', 'og:description', m.description));
   parts.push(tag('property', 'og:image', m.image));
+  if (m.imageW && m.imageH) {
+    parts.push(tag('property', 'og:image:width', String(m.imageW)));
+    parts.push(tag('property', 'og:image:height', String(m.imageH)));
+  }
+  if (m.imageType) parts.push(tag('property', 'og:image:type', m.imageType));
   parts.push(tag('property', 'og:image:alt', m.imageAlt || m.title));
   parts.push(tag('property', 'og:url', m.url));
   parts.push(tag('property', 'og:type', m.type || 'article'));
@@ -418,7 +459,12 @@ export default {
       const url = new URL(request.url);
       const html = await res.text();
       const articles = extractArticles(html);
-      const key = url.searchParams.get('berita') || '';
+      /* Artikel bisa diakses lewat ?berita=<slug> ATAU jalur /berita/<slug> */
+      let key = url.searchParams.get('berita') || '';
+      if (!key) {
+        const pm = url.pathname.match(/^\/berita\/(.+)$/i);
+        if (pm) { try { key = decodeURIComponent(pm[1]); } catch (e2) { key = pm[1]; } }
+      }
       const meta = await resolveMeta(key, articles, url.origin);
       const out = injectMeta(html, meta);
       const headers = new Headers(res.headers);
@@ -435,7 +481,7 @@ export default {
 /* Diekspor khusus untuk pengujian lokal (Node). Tidak memengaruhi produksi.  */
 export const _internals = {
   hashStr, slugify, stripHtml, extractArticles, parseBeritaRecords, grabField,
-  findSeed, buildDescription, isoTanggal, resolveImage, injectMeta, metaBlock,
+  findSeed, buildDescription, isoTanggal, resolveImage, proxify, injectMeta, metaBlock,
   extractImage, resolveMeta, seedMeta, defaultMeta,
   _resetCaches() {
     beritaCache.fp = ''; beritaCache.articles = null;
